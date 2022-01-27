@@ -155,6 +155,10 @@ my_list[3] + 3
 
     ## Error in my_list[3] + 3: non-numeric argument to binary operator
 
+This didn’t work because `my_list[3]` returns a list containing the
+vector we want as its only element, rather than the vector itself. We
+can get the actual list with double brackets, `[[`:
+
 ``` r
 my_list[[3]] + 3
 ```
