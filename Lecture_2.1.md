@@ -150,8 +150,10 @@ my_list[2]
     ## [1] "f"
 
 ``` r
-# my_list[3] + 3
+my_list[3] + 3
 ```
+
+    ## Error in my_list[3] + 3: non-numeric argument to binary operator
 
 ``` r
 my_list[[3]] + 3
@@ -190,16 +192,39 @@ model$coefficients
 
 ## Data frames
 
-Data frames are a special kind of list.
+Data frames are a special kind of list, with two extra rules:
 
-Insert description
+-   Each element is an atomic vector[1]
+-   Each vector must be the same length.
+
+Thus, a data frame is a bit like an Excel spreadsheet. Typically we talk
+about the vectors in a data frame as “columns”, even though they have no
+true orientation.
+
+The tidyverse has strong opinions about how data frames should best be
+laid out, described as the [“tidy data”
+format](https://tidyr.tidyverse.org/). For now, we just need to pay
+attention to the constraint that the vectors in a data frame - the
+“colums” - can only contain one data type, but that type can vary
+between columns.
+
+R has a number of built in data frames we can use for examples. Here’s
+`mtcars`, a data frame about car performance data and specifications.
 
 ``` r
-#print(mtcars, n=nrow(mtcars))
+head(mtcars)
 ```
 
+    ##                    mpg cyl disp  hp drat    wt  qsec vs am gear carb
+    ## Mazda RX4         21.0   6  160 110 3.90 2.620 16.46  0  1    4    4
+    ## Mazda RX4 Wag     21.0   6  160 110 3.90 2.875 17.02  0  1    4    4
+    ## Datsun 710        22.8   4  108  93 3.85 2.320 18.61  1  1    4    1
+    ## Hornet 4 Drive    21.4   6  258 110 3.08 3.215 19.44  1  0    3    1
+    ## Hornet Sportabout 18.7   8  360 175 3.15 3.440 17.02  0  0    3    2
+    ## Valiant           18.1   6  225 105 2.76 3.460 20.22  1  0    3    1
+
 We access elements of data.frames just the same way we access elements
-of any other list
+of any other list.
 
 ``` r
 efficiency <- mtcars[[4]] / mtcars[[3]]
@@ -210,8 +235,9 @@ mean(efficiency)
 
     ## [1] 0.6983209
 
-A much better way to access data frame columns is by name. Basically
-tyou should only ever do this.
+This is pretty unclear, though. Not very reproducible, in the broader
+sense. A much better way to access data frame columns is by name.
+Basically you should only ever do this.
 
 ``` r
 efficiency <- mtcars$hp / mtcars$disp
@@ -219,4 +245,27 @@ efficiency <- mtcars$hp / mtcars$disp
 
 # Other object classes
 
-THere are a million but they’re mostly versions of lists.
+There are a million but they’re mostly versions of lists. We won’t worry
+about them now.
+
+# A note on style
+
+Code *style* is an important part of reproducibility, even if style by
+definition doesn’t affect code execution (in which case it would be
+syntax, not style). Nevertheless, code written in bad style is hard to
+read, and therefore hard to evaluate for errors. I like to use RStudio’s
+style guide [here](https://style.tidyverse.org/). I also make a slight
+modification:
+
+-   Vectors and matrices are always named using `.` to separate words:
+    e.g. `named.vec`, `std.dev`, etc
+-   Anything else: functions, lists, data frames, etc., uses `_` to
+    separate words: `named_list`, `my_data`, etc. Because tidyverse
+    emphasizes using data frames, this is a quick way of keeping track
+    of whether we are talking about a data frame (`_`) or a column
+    within that data frame (`.`)
+
+[1] There is an exception: it is possible to create a “list-column” in a
+data frame. This is really useful, but we won’t have time to talk about
+it here. More great information is
+[here](https://jennybc.github.io/purrr-tutorial/ls13_list-columns.html).
