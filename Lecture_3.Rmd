@@ -1,0 +1,144 @@
+---
+title: "Using the tidyverse"
+output: github_document
+---
+
+```{r setup, message=FALSE}
+library(tidyverse)
+```
+
+# Data input
+
+We often work with built-in data sets in R.
+Common types of data files:
+
+* Excel (actually a zip file containing xml (!?!))
+* SQL and sql-like
+* .rds 
+  * R specific: stores one object in native R format
+  * `saveRDS()` and `readRDS()`
+  * Usually best bet
+* .rData
+  * R specific: stores multiple R objects in native R format
+* json (javascript object notation)
+* tabular text files
+  * fixed-width
+  * tab-separated (tsv)
+  * comma-separated (csv)
+    * watch out for European number formats: commas and periods are switched!
+
+For small-ish, tabular data: try to get tsv or csv files!  You can read them with `readr::read_tsv()` or `readr::read_csv()`. These yield *data frames*.
+
+## Examining data frames (and other objecets)
+
+* `glimpse()`
+* `head()`
+* `str()`
+
+```{r}
+# d <- read_csv("diamonds.csv")
+```
+
+# Split-apply-combine
+
+* *dplyr* package allows calculations with data frames
+* split-apply-combine underlies the *dplyr* philosophy
+* paper (using an outdated package) [here](https://www.jstatsoft.org/article/view/v040i01)
+
+## Tidy data
+
+Tidy data are described in [R4DS](https://r4ds.had.co.nz/tidy-data.html) and in an [original paper](https://www.jstatsoft.org/article/view/v059i10) (which uses the outdated *reshape* package rather than the newer *tidyr* package). Briefly, tidy data should follow the following rules:
+
+1. Each variable must have its own column.
+2. Each observation must have its own row.
+3. Each value must have its own cell.
+
+What constitutes a variable or an observation is somewhat subjective. Imagine, for instance, that we have sent out a survey to a bunch of respondants. Depending on the questions we ask, and the format of the response, we might consider each response to each question to be an "observation", or we might consider each survey to be an "observation", and each question within the survey to be a "variable". 
+
+There are criticisms! The tidy format can be inefficient for large data sets, for instance. 
+
+### Wide vs long data
+
+We very often get our data in a relatively "wide" format (especially if we get it from an excel user). We will want to "pivot" it to a "longer" format prior to analysis. 
+
+I've put examples from the lecture in [this Excel spreadsheet](wide_vs_long_examples.xlsx). 
+
+To switch between formats, we can use `tidyr::pivot_longer()` and `tidyr::pivot_wider()`. Note that the `::` syntax refers to the package that these come from: that is, "use `pivot_longer()` from the `tidyr` package.
+
+
+## Summarise vs mutate
+
+* `summarise()` yields *one answer per group*
+* `mutate()` yields *one answer per row of data*
+
+```{r}
+diamonds_summary <- diamonds %>% # pipe operator! 
+  group_by(cut) %>%
+  summarise(mean.price = mean(price, na.rm = TRUE),
+            sd.price = sd(price, na.rm = TRUE)) # don't need to specify the data frame because dplyr has created a new environment for the diamodns data frame
+print(diamonds_summary)
+```
+
+Here, `mean()` yields a *single* answer for each group, so we use a summarise operation. Note that, because there is no unique value the columns other than the grouping variable, only the grouping variable is retained. That is to say: we grouped on `cut`, so there is not one unique value for `color` (or `carat`, or `x`, or...) for each value of `cut`. Thus, we only preserve the `cut` column, plus the two new columns that `summarise()` created.
+
+Now imagine that we want to see how cut and color combine to yield price. We just add `color` to the `group_by()` function - easy as that!
+
+```{r}
+diamonds_summ_2 <- diamonds %>%
+  group_by(cut, color) %>%
+  summarise(mean.price = mean(price, na.rm = TRUE),
+            sd.price = sd(price, na.rm = TRUE), .groups = "drop")
+head(diamonds_summ_2)
+```
+
+There are 7 levels of `color` and 5 levels of `cut` so we end up with a data frame with $7 \times 5 = 35$ rows.
+
+We added some odd syntax to `sumarise()` here - `.groups = drop`. That's because *dplyr* has to make a decision as to how the resulting data frame should be grouped. By default, it will group the data frame by all but the last column to be specified. It also gives us a message that is kind of intrusive and annoying. Personally I don't want my data frames to be grouped unless I explicitly grouped them, so I use this option to return an ungrouped data frame. 
+
+Now imagine that we want to perform a grouped operation that will yield one answer for each row of the data frame. For instance, say we want to normalize the price of each diamond to the maximum price of diamonds in that group^[I'm not totally sure why we would want to do that, but it makes more sense if we think of, for instance, a growth rate experiment, where we want to normalize cell numbers to the initial cell number, which might vary among treatments].
+
+Since we have one answer per row of the data frame, we'll use `mutate()`.
+
+```{r}
+diamonds_norm <- diamonds %>%
+  group_by(cut) %>%
+  mutate(norm.price = price / max(price, na.rm = TRUE))
+glimpse(diamonds_norm)
+```
+# List-columns
+
+There's one situation in which things get a little complicated. What if I want to apply a transformation that doesn't yield either a single number/character/logical result (`summarise()`) or one result per line of data (`mutate()`)? 
+
+Lists are very flexible. We can use the *purrr* package to create **list-columns**, i.e. columns of data frames where each element is a list.
+
+The first step is to use `nest()` to "nest" each group of our data frame into a data frame that sits inside a list-column:
+
+```{r}
+nested_df <- diamonds %>%
+  group_by(cut) %>%
+  nest()
+
+glimpse(nested_df$data[[1]])
+```
+Next we apply a function (here, a function I wrote, `lm_fun`) to each element of the list-column, and put the result in a new list-column using `mutate()`. 
+```{r}
+lm_fun <- function(df) {
+  lm(price ~ carat, data = df)
+}
+nested_df_2 <- nested_df %>%
+  mutate(lms = map(data, lm_fun))
+summary(nested_df_2$lms[[1]])
+```
+Finally, we can get information out of the list column by writing a function to extract data - in this case, the slope of the linear model, which is the second element in the vector that `coef()` returns.
+
+This time, I will use `map_dbl()` because the slope is a double-precision number. `map()` always returns a list, but `map_dbl()` retunrns a double-precision vector (and `map_chr()` returns a character, etc). 
+```{r}
+get_slope <- function(my.lm) {
+  coef(my.lm)[2]
+}
+
+slopes <- nested_df_2 %>%
+  mutate(slope = map_dbl(lms, get_slope)) # map_dbl because I want double precision numbers, not a list
+print(slopes)
+```
+
